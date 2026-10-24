@@ -26656,7 +26656,7 @@ var $async$aup=A.K(function(a,b){if(a===1)return A.G(b,r)
 for(;;)switch(s){case 0:if($.W==null)A.aiK()
 $.W.toString
 s=2
-return A.B(A.agK("sb_publishable_AMApiKCwlCYu4zA5HiKwJw_qNQ5ld5p","https://vugtxfchdtyjcvqgphse.supabase.co"),$async$aup)
+return A.B(A.agK("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5eXd4ZGxmYnFqYmNnd3J5ZHZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI3NjQ1OTksImV4cCI6MjEwODM0MDU5OX0.Qwj1VYRXvS-WA0XYErwIuDIhvnaG4fXBLJzFHlnLTvs","https://vugtxfchdtyjcvqgphse.supabase.co"),$async$aup)
 case 2:if($.W==null)A.aiK()
 q=$.W
 q.toString
