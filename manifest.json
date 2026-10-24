@@ -4,7 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Supabase 통신 설정 (anonKey 유지)
+  // Supabase 클라이언트 초기화
   await Supabase.initialize(
     url: 'https://vugtxfchdtyjcvqgphse.supabase.co',
     anonKey: 'sb_publishable_sQ1_sH_CynqU3127Hk35fA_ZpP3U0t1',
@@ -20,12 +20,31 @@ class WordWorldApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const primaryGreen = Color(0xFF2E7D32); // 차분하고 따뜻한 포레스트 그린
+    const warmBeige = Color(0xFFF7F5F0);   // 아늑한 베이지 배경색
+
     return MaterialApp(
-      title: 'WordWorld',
+      title: 'Word World',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: primaryGreen,
+          primary: primaryGreen,
+        ),
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+        scaffoldBackgroundColor: warmBeige,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: warmBeige,
+          foregroundColor: primaryGreen,
+          elevation: 0,
+          titleTextStyle: TextStyle(
+            color: primaryGreen,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.5,
+          ),
+          iconTheme: IconThemeData(color: primaryGreen),
+        ),
       ),
       home: const BookListScreen(),
     );
@@ -33,7 +52,7 @@ class WordWorldApp extends StatelessWidget {
 }
 
 // ----------------------------------------------------
-// 1. 단어장 목록 화면 (단어장 삭제 & 버튼 정리)
+// 1. 단어장 목록 화면 (베이지 톤 + 중앙 그린 버튼)
 // ----------------------------------------------------
 class BookListScreen extends StatefulWidget {
   const BookListScreen({super.key});
@@ -58,14 +77,17 @@ class _BookListScreenState extends State<BookListScreen> {
       final data = await supabase
           .from('vocab_books')
           .select()
-          .order('created_at', ascending: false);
+          .order('id', ascending: false);
       setState(() {
         _books = List<Map<String, dynamic>>.from(data);
       });
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('단어장 불러오기 실패: $e')),
+          SnackBar(
+            content: Text('단어장 불러오기 실패: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
         );
       }
     } finally {
@@ -91,15 +113,16 @@ class _BookListScreenState extends State<BookListScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.white,
         title: const Text('단어장 삭제'),
         content: Text('\'$title\' 단어장과 포함된 모든 단어를 삭제하시겠습니까?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('취소'),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('삭제', style: TextStyle(color: Colors.white)),
           ),
@@ -133,26 +156,37 @@ class _BookListScreenState extends State<BookListScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('새 단어장 추가'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('새 단어장 추가', style: TextStyle(fontWeight: FontWeight.bold)),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            hintText: '단어장 이름 (예: 토익, 수능)',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: '단어장 이름 (예: 토익, 수능, 일상 영어)',
+            filled: true,
+            fillColor: const Color(0xFFF7F5F0),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
           ),
           autofocus: true,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('취소'),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
             onPressed: () {
               Navigator.pop(ctx);
               _createBook(controller.text);
             },
-            child: const Text('생성'),
+            child: const Text('생성', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -163,20 +197,51 @@ class _BookListScreenState extends State<BookListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'WordWorld',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Word World'), // 띄어쓰기 및 초록 타이틀 반영
         centerTitle: true,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)))
           : _books.isEmpty
-              ? const Center(
-                  child: Text(
-                    '등록된 단어장이 없습니다.\n아래 버튼을 눌러 단어장을 만들어보세요!',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey, fontSize: 16),
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 32.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          '여기에 단어장을 만들고\n나만의 어휘력을 쑥쑥 키워보세요.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            color: Color(0xFF78716C),
+                            fontSize: 16,
+                            height: 1.5,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        // 중앙의 아담하고 깔끔한 초록색 버튼
+                        ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF2E7D32),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                              vertical: 14,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 2,
+                          ),
+                          onPressed: _showAddBookDialog,
+                          icon: const Icon(Icons.add, size: 20),
+                          label: const Text(
+                            '새로운 단어장',
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               : ListView.builder(
@@ -185,23 +250,26 @@ class _BookListScreenState extends State<BookListScreen> {
                   itemBuilder: (context, index) {
                     final book = _books[index];
                     return Card(
-                      elevation: 2,
-                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      color: Colors.white,
+                      elevation: 1.5,
+                      shadowColor: Colors.black12,
+                      margin: const EdgeInsets.symmetric(vertical: 6),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: ListTile(
                         contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 20, vertical: 10),
+                            horizontal: 18, vertical: 8),
                         leading: CircleAvatar(
-                          backgroundColor: Colors.indigo.shade50,
-                          child: const Icon(Icons.menu_book, color: Colors.indigo),
+                          backgroundColor: const Color(0xFFE8F5E9),
+                          child: const Icon(Icons.menu_book, color: Color(0xFF2E7D32)),
                         ),
                         title: Text(
                           book['title'] ?? '이름 없음',
                           style: const TextStyle(
-                            fontSize: 18,
+                            fontSize: 17,
                             fontWeight: FontWeight.w600,
+                            color: Color(0xFF292524),
                           ),
                         ),
                         trailing: Row(
@@ -211,7 +279,7 @@ class _BookListScreenState extends State<BookListScreen> {
                               icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
                               onPressed: () => _deleteBook(book['id'], book['title'] ?? ''),
                             ),
-                            const Icon(Icons.chevron_right, color: Colors.grey),
+                            const Icon(Icons.chevron_right, color: Color(0xFFA8A29E)),
                           ],
                         ),
                         onTap: () {
@@ -229,28 +297,15 @@ class _BookListScreenState extends State<BookListScreen> {
                     );
                   },
                 ),
-      // 아이콘(+)과 텍스트('새로운 단어장')로 깔끔하게 단일화
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: ElevatedButton.icon(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo,
+      floatingActionButton: _books.isNotEmpty
+          ? FloatingActionButton.extended(
+              onPressed: _showAddBookDialog,
+              backgroundColor: const Color(0xFF2E7D32),
               foregroundColor: Colors.white,
-              minimumSize: const Size.fromHeight(52),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-            ),
-            onPressed: _showAddBookDialog,
-            icon: const Icon(Icons.add),
-            label: const Text(
-              '새로운 단어장',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-            ),
-          ),
-        ),
-      ),
+              icon: const Icon(Icons.add),
+              label: const Text('새로운 단어장', style: TextStyle(fontWeight: FontWeight.bold)),
+            )
+          : null,
     );
   }
 }
@@ -319,21 +374,32 @@ class _DayListScreenState extends State<DayListScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Day 추가'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Day 추가', style: TextStyle(fontWeight: FontWeight.bold)),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             labelText: '추가할 Day 번호',
-            border: OutlineInputBorder(),
+            filled: true,
+            fillColor: const Color(0xFFF7F5F0),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide.none,
+            ),
           ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('취소'),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
             onPressed: () {
               final parsed = int.tryParse(controller.text);
               Navigator.pop(ctx);
@@ -350,7 +416,7 @@ class _DayListScreenState extends State<DayListScreen> {
                 ).then((_) => _fetchDays());
               }
             },
-            child: const Text('확인'),
+            child: const Text('확인', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -364,7 +430,7 @@ class _DayListScreenState extends State<DayListScreen> {
         title: Text(widget.bookTitle),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)))
           : _days.isEmpty
               ? Center(
                   child: Column(
@@ -372,13 +438,25 @@ class _DayListScreenState extends State<DayListScreen> {
                     children: [
                       const Text(
                         '아직 등록된 Day가 없습니다.',
-                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                        style: TextStyle(color: Color(0xFF78716C), fontSize: 16),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2E7D32),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 2,
+                        ),
                         onPressed: _showAddDayDialog,
                         icon: const Icon(Icons.add),
-                        label: const Text('Day 1 생성하기'),
+                        label: const Text(
+                          'Day 1 시작하기',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
                       )
                     ],
                   ),
@@ -389,29 +467,33 @@ class _DayListScreenState extends State<DayListScreen> {
                   itemBuilder: (context, index) {
                     final dayNum = _days[index];
                     return Card(
+                      color: Colors.white,
+                      elevation: 1.5,
+                      shadowColor: Colors.black12,
                       margin: const EdgeInsets.symmetric(vertical: 6),
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                       ),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: Colors.indigo.shade100,
+                          backgroundColor: const Color(0xFFE8F5E9),
                           child: Text(
                             '$dayNum',
                             style: const TextStyle(
                               fontWeight: FontWeight.bold,
-                              color: Colors.indigo,
+                              color: Color(0xFF2E7D32),
                             ),
                           ),
                         ),
                         title: Text(
                           'Day $dayNum',
                           style: const TextStyle(
-                            fontSize: 18,
+                            fontSize: 17,
                             fontWeight: FontWeight.w600,
+                            color: Color(0xFF292524),
                           ),
                         ),
-                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        trailing: const Icon(Icons.chevron_right, color: Color(0xFFA8A29E)),
                         onTap: () {
                           Navigator.push(
                             context,
@@ -428,19 +510,20 @@ class _DayListScreenState extends State<DayListScreen> {
                     );
                   },
                 ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAddDayDialog,
-        backgroundColor: Colors.indigo,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Day 추가'),
-      ),
+      floatingActionButton: _days.isNotEmpty
+          ? FloatingActionButton(
+              onPressed: _showAddDayDialog,
+              backgroundColor: const Color(0xFF2E7D32),
+              foregroundColor: Colors.white,
+              child: const Icon(Icons.add),
+            )
+          : null,
     );
   }
 }
 
 // ----------------------------------------------------
-// 3. 단어 목록 화면 (+ 아이콘으로 단어 추가 모달 개편)
+// 3. 단어 목록 화면 (초록 단어 추가 버튼 및 다이얼로그)
 // ----------------------------------------------------
 class WordListScreen extends StatefulWidget {
   final int bookId;
@@ -499,26 +582,41 @@ class _WordListScreenState extends State<WordListScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Day ${widget.day} 단어 추가'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Day ${widget.day} 단어 추가',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: wordController,
               autofocus: true,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: '영어 단어',
-                hintText: '예: apple',
-                border: OutlineInputBorder(),
+                hintText: '예: challenge',
+                filled: true,
+                fillColor: const Color(0xFFF7F5F0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: meaningController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: '한국어 뜻',
-                hintText: '예: 사과',
-                border: OutlineInputBorder(),
+                hintText: '예: 도전',
+                filled: true,
+                fillColor: const Color(0xFFF7F5F0),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
               ),
             ),
           ],
@@ -526,9 +624,13 @@ class _WordListScreenState extends State<WordListScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('취소'),
+            child: const Text('취소', style: TextStyle(color: Colors.grey)),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
             onPressed: () async {
               final w = wordController.text.trim();
               final m = meaningController.text.trim();
@@ -551,7 +653,7 @@ class _WordListScreenState extends State<WordListScreen> {
                 }
               }
             },
-            child: const Text('저장'),
+            child: const Text('저장', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -575,7 +677,7 @@ class _WordListScreenState extends State<WordListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('${widget.bookTitle} - Day ${widget.day}'),
+        title: Text('${widget.bookTitle} · Day ${widget.day}'),
         actions: [
           IconButton(
             icon: const Icon(Icons.add, size: 28),
@@ -585,7 +687,7 @@ class _WordListScreenState extends State<WordListScreen> {
         ],
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)))
           : _words.isEmpty
               ? Center(
                   child: Column(
@@ -593,13 +695,25 @@ class _WordListScreenState extends State<WordListScreen> {
                     children: [
                       const Text(
                         '등록된 단어가 없습니다.',
-                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                        style: TextStyle(color: Color(0xFF78716C), fontSize: 16),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 20),
                       ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2E7D32),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          elevation: 2,
+                        ),
                         onPressed: _showAddWordDialog,
                         icon: const Icon(Icons.add),
-                        label: const Text('첫 단어 추가하기'),
+                        label: const Text(
+                          '단어 추가하기',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
                       ),
                     ],
                   ),
@@ -607,36 +721,48 @@ class _WordListScreenState extends State<WordListScreen> {
               : ListView.separated(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   itemCount: _words.length,
-                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  separatorBuilder: (context, index) => const Divider(
+                    height: 1,
+                    color: Color(0xFFE7E5E4),
+                  ),
                   itemBuilder: (context, index) {
                     final item = _words[index];
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 4),
-                      title: Text(
-                        item['word'] ?? '',
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    return Card(
+                      color: Colors.white,
+                      elevation: 0.5,
+                      margin: const EdgeInsets.symmetric(vertical: 4),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      subtitle: Text(
-                        item['meaning'] ?? '',
-                        style: TextStyle(
-                          fontSize: 15,
-                          color: Colors.grey.shade700,
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
+                        title: Text(
+                          item['word'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1C1917),
+                          ),
                         ),
-                      ),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.close, color: Colors.grey),
-                        onPressed: () => _deleteWord(item['id']),
+                        subtitle: Text(
+                          item['meaning'] ?? '',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            color: Color(0xFF57534E),
+                          ),
+                        ),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.close, color: Color(0xFFA8A29E)),
+                          onPressed: () => _deleteWord(item['id']),
+                        ),
                       ),
                     );
                   },
                 ),
       floatingActionButton: FloatingActionButton(
         onPressed: _showAddWordDialog,
-        backgroundColor: Colors.indigo,
+        backgroundColor: const Color(0xFF2E7D32),
         foregroundColor: Colors.white,
         tooltip: '단어 추가',
         child: const Icon(Icons.add),
@@ -647,15 +773,19 @@ class _WordListScreenState extends State<WordListScreen> {
                 padding: const EdgeInsets.all(16.0),
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green.shade600,
+                    backgroundColor: const Color(0xFF388E3C),
                     foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(50),
+                    minimumSize: const Size.fromHeight(52),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
+                    elevation: 2,
                   ),
                   icon: const Icon(Icons.quiz),
-                  label: Text('Day ${widget.day} 퀴즈 풀기 (${_words.length}단어)'),
+                  label: Text(
+                    'Day ${widget.day} 퀴즈 풀기 (${_words.length}단어)',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -762,16 +892,21 @@ class _QuizScreenState extends State<QuizScreen> {
       context: context,
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
-        title: const Text('🎉 퀴즈 완료!'),
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('🎉 퀴즈 완료!', style: TextStyle(fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text('점수: $_score / ${_quizList.length}'),
+            Text(
+              '점수: $_score / ${_quizList.length}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
             if (_wrongWords.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(
                 '틀린 단어: ${_wrongWords.length}개',
-                style: const TextStyle(color: Colors.red),
+                style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
               ),
             ]
           ],
@@ -789,14 +924,21 @@ class _QuizScreenState extends State<QuizScreen> {
                 });
                 _loadQuestion();
               },
-              child: const Text('틀린 단어 재시험'),
+              child: const Text(
+                '틀린 단어 재시험',
+                style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold),
+              ),
             ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
             onPressed: () {
               Navigator.pop(ctx);
               Navigator.pop(context);
             },
-            child: const Text('종료'),
+            child: const Text('종료', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -818,31 +960,35 @@ class _QuizScreenState extends State<QuizScreen> {
           children: [
             LinearProgressIndicator(
               value: (_currentIndex + 1) / _quizList.length,
-              backgroundColor: Colors.grey.shade200,
-              color: Colors.indigo,
+              backgroundColor: const Color(0xFFE7E5E4),
+              color: const Color(0xFF2E7D32),
             ),
             const Spacer(),
             Center(
               child: Text(
                 currentWord['word'] ?? '',
                 style: const TextStyle(
-                  fontSize: 36,
+                  fontSize: 38,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.2,
+                  color: Color(0xFF1C1917),
                 ),
               ),
             ),
             const Spacer(),
             ...List.generate(_currentOptions.length, (index) {
               final option = _currentOptions[index];
-              Color? btnColor;
+              Color btnColor = Colors.white;
+              Color textColor = const Color(0xFF292524);
 
               if (_isAnswered) {
                 final correctAnswer = currentWord['meaning'] as String;
                 if (option == correctAnswer) {
-                  btnColor = Colors.green.shade400;
+                  btnColor = const Color(0xFF2E7D32);
+                  textColor = Colors.white;
                 } else if (option == _selectedOption) {
-                  btnColor = Colors.red.shade400;
+                  btnColor = Colors.redAccent;
+                  textColor = Colors.white;
                 }
               }
 
@@ -852,8 +998,10 @@ class _QuizScreenState extends State<QuizScreen> {
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     backgroundColor: btnColor,
+                    elevation: 1.5,
+                    shadowColor: Colors.black12,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
                   onPressed: () => _selectOption(option),
@@ -861,7 +1009,8 @@ class _QuizScreenState extends State<QuizScreen> {
                     option,
                     style: TextStyle(
                       fontSize: 17,
-                      color: btnColor != null ? Colors.white : Colors.black87,
+                      color: textColor,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
