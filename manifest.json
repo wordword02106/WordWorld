@@ -1,35 +1,876 @@
-{
-    "name": "WordWorld",
-    "short_name": "WordWorld",
-    "start_url": ".",
-    "display": "standalone",
-    "background_color": "#F8FAFC",
-    "theme_color": "#4F46E5",
-    "description": "WordWorld Vocabulary App",
-    "orientation": "portrait-primary",
-    "prefer_related_applications": false,
-    "icons": [
-        {
-            "src": "icons/Icon-192.png",
-            "sizes": "192x192",
-            "type": "image/png"
-        },
-        {
-            "src": "icons/Icon-512.png",
-            "sizes": "512x512",
-            "type": "image/png"
-        },
-        {
-            "src": "icons/Icon-maskable-192.png",
-            "sizes": "192x192",
-            "type": "image/png",
-            "purpose": "maskable"
-        },
-        {
-            "src": "icons/Icon-maskable-512.png",
-            "sizes": "512x512",
-            "type": "image/png",
-            "purpose": "maskable"
+import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Supabase 통신 설정 (anonKey 유지)
+  await Supabase.initialize(
+    url: 'https://vugtxfchdtyjcvqgphse.supabase.co',
+    anonKey: 'sb_publishable_sQ1_sH_CynqU3127Hk35fA_ZpP3U0t1',
+  );
+
+  runApp(const WordWorldApp());
+}
+
+final supabase = Supabase.instance.client;
+
+class WordWorldApp extends StatelessWidget {
+  const WordWorldApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'WordWorld',
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.indigo),
+        useMaterial3: true,
+        scaffoldBackgroundColor: const Color(0xFFF8FAFC),
+      ),
+      home: const BookListScreen(),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// 1. 단어장 목록 화면 (단어장 삭제 & 버튼 정리)
+// ----------------------------------------------------
+class BookListScreen extends StatefulWidget {
+  const BookListScreen({super.key});
+
+  @override
+  State<BookListScreen> createState() => _BookListScreenState();
+}
+
+class _BookListScreenState extends State<BookListScreen> {
+  List<Map<String, dynamic>> _books = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchBooks();
+  }
+
+  Future<void> _fetchBooks() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await supabase
+          .from('vocab_books')
+          .select()
+          .order('created_at', ascending: false);
+      setState(() {
+        _books = List<Map<String, dynamic>>.from(data);
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('단어장 불러오기 실패: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  Future<void> _createBook(String title) async {
+    if (title.trim().isEmpty) return;
+    try {
+      await supabase.from('vocab_books').insert({'title': title.trim()});
+      _fetchBooks();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('생성 실패: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteBook(int bookId, String title) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('단어장 삭제'),
+        content: Text('\'$title\' 단어장과 포함된 모든 단어를 삭제하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('삭제', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await supabase.from('words').delete().eq('book_id', bookId);
+      await supabase.from('vocab_books').delete().eq('id', bookId);
+
+      _fetchBooks();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('단어장이 삭제되었습니다.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('삭제 실패: $e')),
+        );
+      }
+    }
+  }
+
+  void _showAddBookDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('새 단어장 추가'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            hintText: '단어장 이름 (예: 토익, 수능)',
+            border: OutlineInputBorder(),
+          ),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _createBook(controller.text);
+            },
+            child: const Text('생성'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text(
+          'WordWorld',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        centerTitle: true,
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _books.isEmpty
+              ? const Center(
+                  child: Text(
+                    '등록된 단어장이 없습니다.\n아래 버튼을 눌러 단어장을 만들어보세요!',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey, fontSize: 16),
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  itemCount: _books.length,
+                  itemBuilder: (context, index) {
+                    final book = _books[index];
+                    return Card(
+                      elevation: 2,
+                      margin: const EdgeInsets.symmetric(vertical: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: ListTile(
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 20, vertical: 10),
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.indigo.shade50,
+                          child: const Icon(Icons.menu_book, color: Colors.indigo),
+                        ),
+                        title: Text(
+                          book['title'] ?? '이름 없음',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
+                              onPressed: () => _deleteBook(book['id'], book['title'] ?? ''),
+                            ),
+                            const Icon(Icons.chevron_right, color: Colors.grey),
+                          ],
+                        ),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => DayListScreen(
+                                bookId: book['id'],
+                                bookTitle: book['title'] ?? '',
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    );
+                  },
+                ),
+      // 아이콘(+)과 텍스트('새로운 단어장')로 깔끔하게 단일화
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.indigo,
+              foregroundColor: Colors.white,
+              minimumSize: const Size.fromHeight(52),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+            ),
+            onPressed: _showAddBookDialog,
+            icon: const Icon(Icons.add),
+            label: const Text(
+              '새로운 단어장',
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// 2. Day 목록 화면
+// ----------------------------------------------------
+class DayListScreen extends StatefulWidget {
+  final int bookId;
+  final String bookTitle;
+
+  const DayListScreen({
+    super.key,
+    required this.bookId,
+    required this.bookTitle,
+  });
+
+  @override
+  State<DayListScreen> createState() => _DayListScreenState();
+}
+
+class _DayListScreenState extends State<DayListScreen> {
+  List<int> _days = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchDays();
+  }
+
+  Future<void> _fetchDays() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await supabase
+          .from('words')
+          .select('day')
+          .eq('book_id', widget.bookId);
+
+      final daySet = <int>{};
+      for (var row in data) {
+        if (row['day'] != null) {
+          daySet.add(row['day'] as int);
         }
-    ]
+      }
+      final sortedDays = daySet.toList()..sort();
+
+      setState(() {
+        _days = sortedDays;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Day 목록 불러오기 실패: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showAddDayDialog() {
+    final nextDay = _days.isEmpty ? 1 : _days.last + 1;
+    final controller = TextEditingController(text: '$nextDay');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Day 추가'),
+        content: TextField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: '추가할 Day 번호',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final parsed = int.tryParse(controller.text);
+              Navigator.pop(ctx);
+              if (parsed != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => WordListScreen(
+                      bookId: widget.bookId,
+                      bookTitle: widget.bookTitle,
+                      day: parsed,
+                    ),
+                  ),
+                ).then((_) => _fetchDays());
+              }
+            },
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(widget.bookTitle),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _days.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        '아직 등록된 Day가 없습니다.',
+                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _showAddDayDialog,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Day 1 생성하기'),
+                      )
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: _days.length,
+                  itemBuilder: (context, index) {
+                    final dayNum = _days[index];
+                    return Card(
+                      margin: const EdgeInsets.symmetric(vertical: 6),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.indigo.shade100,
+                          child: Text(
+                            '$dayNum',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.indigo,
+                            ),
+                          ),
+                        ),
+                        title: Text(
+                          'Day $dayNum',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => WordListScreen(
+                                bookId: widget.bookId,
+                                bookTitle: widget.bookTitle,
+                                day: dayNum,
+                              ),
+                            ),
+                          ).then((_) => _fetchDays());
+                        },
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _showAddDayDialog,
+        backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: const Text('Day 추가'),
+      ),
+    );
+  }
+}
+
+// ----------------------------------------------------
+// 3. 단어 목록 화면 (+ 아이콘으로 단어 추가 모달 개편)
+// ----------------------------------------------------
+class WordListScreen extends StatefulWidget {
+  final int bookId;
+  final String bookTitle;
+  final int day;
+
+  const WordListScreen({
+    super.key,
+    required this.bookId,
+    required this.bookTitle,
+    required this.day,
+  });
+
+  @override
+  State<WordListScreen> createState() => _WordListScreenState();
+}
+
+class _WordListScreenState extends State<WordListScreen> {
+  List<Map<String, dynamic>> _words = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchWords();
+  }
+
+  Future<void> _fetchWords() async {
+    setState(() => _isLoading = true);
+    try {
+      final data = await supabase
+          .from('words')
+          .select()
+          .eq('book_id', widget.bookId)
+          .eq('day', widget.day)
+          .order('id', ascending: true);
+
+      setState(() {
+        _words = List<Map<String, dynamic>>.from(data);
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('단어 로딩 실패: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  void _showAddWordDialog() {
+    final wordController = TextEditingController();
+    final meaningController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Day ${widget.day} 단어 추가'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: wordController,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: '영어 단어',
+                hintText: '예: apple',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: meaningController,
+              decoration: const InputDecoration(
+                labelText: '한국어 뜻',
+                hintText: '예: 사과',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final w = wordController.text.trim();
+              final m = meaningController.text.trim();
+              if (w.isEmpty || m.isEmpty) return;
+
+              Navigator.pop(ctx);
+              try {
+                await supabase.from('words').insert({
+                  'book_id': widget.bookId,
+                  'day': widget.day,
+                  'word': w,
+                  'meaning': m,
+                });
+                _fetchWords();
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('단어 저장 실패: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteWord(int id) async {
+    try {
+      await supabase.from('words').delete().eq('id', id);
+      _fetchWords();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('삭제 실패: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('${widget.bookTitle} - Day ${widget.day}'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add, size: 28),
+            tooltip: '단어 추가',
+            onPressed: _showAddWordDialog,
+          ),
+        ],
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _words.isEmpty
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        '등록된 단어가 없습니다.',
+                        style: TextStyle(color: Colors.grey, fontSize: 16),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _showAddWordDialog,
+                        icon: const Icon(Icons.add),
+                        label: const Text('첫 단어 추가하기'),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  itemCount: _words.length,
+                  separatorBuilder: (context, index) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final item = _words[index];
+                    return ListTile(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      title: Text(
+                        item['word'] ?? '',
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Text(
+                        item['meaning'] ?? '',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.grey.shade700,
+                        ),
+                      ),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close, color: Colors.grey),
+                        onPressed: () => _deleteWord(item['id']),
+                      ),
+                    );
+                  },
+                ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddWordDialog,
+        backgroundColor: Colors.indigo,
+        foregroundColor: Colors.white,
+        tooltip: '단어 추가',
+        child: const Icon(Icons.add),
+      ),
+      bottomNavigationBar: _words.length >= 4
+          ? SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    minimumSize: const Size.fromHeight(50),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.quiz),
+                  label: Text('Day ${widget.day} 퀴즈 풀기 (${_words.length}단어)'),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => QuizScreen(
+                          words: _words,
+                          day: widget.day,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            )
+          : null,
+    );
+  }
+}
+
+// ----------------------------------------------------
+// 4. 4지선다 퀴즈 및 오답 재시험 화면
+// ----------------------------------------------------
+class QuizScreen extends StatefulWidget {
+  final List<Map<String, dynamic>> words;
+  final int day;
+
+  const QuizScreen({
+    super.key,
+    required this.words,
+    required this.day,
+  });
+
+  @override
+  State<QuizScreen> createState() => _QuizScreenState();
+}
+
+class _QuizScreenState extends State<QuizScreen> {
+  late List<Map<String, dynamic>> _quizList;
+  int _currentIndex = 0;
+  List<String> _currentOptions = [];
+  String? _selectedOption;
+  bool _isAnswered = false;
+  int _score = 0;
+  final List<Map<String, dynamic>> _wrongWords = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _quizList = List.from(widget.words)..shuffle();
+    _loadQuestion();
+  }
+
+  void _loadQuestion() {
+    _isAnswered = false;
+    _selectedOption = null;
+
+    final currentWord = _quizList[_currentIndex];
+    final correctAnswer = currentWord['meaning'] as String;
+
+    final otherMeanings = widget.words
+        .map((e) => e['meaning'] as String)
+        .where((m) => m != correctAnswer)
+        .toSet()
+        .toList();
+
+    otherMeanings.shuffle();
+    final wrongOptions = otherMeanings.take(3).toList();
+
+    final options = [correctAnswer, ...wrongOptions]..shuffle();
+    setState(() {
+      _currentOptions = options;
+    });
+  }
+
+  void _selectOption(String option) {
+    if (_isAnswered) return;
+
+    final correctAnswer = _quizList[_currentIndex]['meaning'] as String;
+    setState(() {
+      _selectedOption = option;
+      _isAnswered = true;
+      if (option == correctAnswer) {
+        _score++;
+      } else {
+        _wrongWords.add(_quizList[_currentIndex]);
+      }
+    });
+
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      if (_currentIndex + 1 < _quizList.length) {
+        setState(() {
+          _currentIndex++;
+        });
+        _loadQuestion();
+      } else {
+        _showResult();
+      }
+    });
+  }
+
+  void _showResult() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text('🎉 퀴즈 완료!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('점수: $_score / ${_quizList.length}'),
+            if (_wrongWords.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                '틀린 단어: ${_wrongWords.length}개',
+                style: const TextStyle(color: Colors.red),
+              ),
+            ]
+          ],
+        ),
+        actions: [
+          if (_wrongWords.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                setState(() {
+                  _quizList = List.from(_wrongWords)..shuffle();
+                  _wrongWords.clear();
+                  _currentIndex = 0;
+                  _score = 0;
+                });
+                _loadQuestion();
+              },
+              child: const Text('틀린 단어 재시험'),
+            ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.pop(context);
+            },
+            child: const Text('종료'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final currentWord = _quizList[_currentIndex];
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Day ${widget.day} 테스트 (${_currentIndex + 1}/${_quizList.length})'),
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(24.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            LinearProgressIndicator(
+              value: (_currentIndex + 1) / _quizList.length,
+              backgroundColor: Colors.grey.shade200,
+              color: Colors.indigo,
+            ),
+            const Spacer(),
+            Center(
+              child: Text(
+                currentWord['word'] ?? '',
+                style: const TextStyle(
+                  fontSize: 36,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+            const Spacer(),
+            ...List.generate(_currentOptions.length, (index) {
+              final option = _currentOptions[index];
+              Color? btnColor;
+
+              if (_isAnswered) {
+                final correctAnswer = currentWord['meaning'] as String;
+                if (option == correctAnswer) {
+                  btnColor = Colors.green.shade400;
+                } else if (option == _selectedOption) {
+                  btnColor = Colors.red.shade400;
+                }
+              }
+
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6.0),
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    backgroundColor: btnColor,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () => _selectOption(option),
+                  child: Text(
+                    option,
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: btnColor != null ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ),
+              );
+            }),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
 }
